@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Piano – C3 Octave</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;500&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #1a1a1a;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: 'DM Mono', monospace;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  h1 {
+    color: #555;
+    font-size: 11px;
+    font-weight: 300;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    margin-bottom: 40px;
+  }
+
+  .piano-wrapper {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    filter: drop-shadow(0 20px 60px rgba(0,0,0,0.8));
+  }
+
+  /* WHITE KEYS */
+  .white-key {
+    position: relative;
+    width: 72px;
+    height: 260px;
+    background: linear-gradient(180deg, #f0ece4 0%, #faf8f4 40%, #ffffff 100%);
+    border: 1px solid #ccc;
+    border-top: none;
+    border-radius: 0 0 8px 8px;
+    cursor: pointer;
+    transition: background 0.05s ease;
+    z-index: 1;
+    margin-right: 2px;
+  }
+
+  .white-key:first-child { border-radius: 0 0 8px 4px; }
+  .white-key:last-child  { border-radius: 0 0 4px 8px; margin-right: 0; }
+
+  .white-key::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 60%;
+    background: linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.03) 100%);
+    border-radius: 0 0 8px 8px;
+    pointer-events: none;
+  }
+
+  .white-key.active,
+  .white-key:active {
+    background: linear-gradient(180deg, #d8e8f5 0%, #e8f2fb 40%, #f0f8ff 100%);
+    box-shadow: inset 0 -4px 8px rgba(100,160,220,0.3);
+  }
+
+  /* BLACK KEYS */
+  .black-key {
+    position: absolute;
+    width: 44px;
+    height: 160px;
+    background: linear-gradient(180deg, #2a2a2a 0%, #111 60%, #000 100%);
+    border-radius: 0 0 6px 6px;
+    cursor: pointer;
+    z-index: 2;
+    top: 0;
+    box-shadow: 2px 4px 8px rgba(0,0,0,0.6), inset 1px 0 1px rgba(255,255,255,0.07);
+    transition: background 0.05s ease;
+  }
+
+  .black-key::after {
+    content: '';
+    position: absolute;
+    bottom: 12px; left: 6px; right: 6px;
+    height: 30%;
+    background: linear-gradient(180deg, transparent 0%, rgba(255,255,255,0.04) 100%);
+    border-radius: 0 0 4px 4px;
+    pointer-events: none;
+  }
+
+  .black-key.active,
+  .black-key:active {
+    background: linear-gradient(180deg, #1a3a5c 0%, #0d2340 60%, #061525 100%);
+    box-shadow: 1px 2px 4px rgba(0,0,0,0.8), inset 1px 0 1px rgba(100,160,220,0.15);
+  }
+
+  .kb-hint {
+    position: absolute;
+    bottom: 10px;
+    width: 100%;
+    text-align: center;
+    font-size: 9px;
+    color: rgba(0,0,0,0.25);
+    font-family: 'DM Mono', monospace;
+    pointer-events: none;
+  }
+
+  .black-key .kb-hint {
+    bottom: 8px;
+    color: rgba(255,255,255,0.2);
+    font-size: 8px;
+  }
+
+  /* Keyboard shortcut legend */
+  .legend {
+    margin-top: 36px;
+    color: #3a3a3a;
+    font-size: 10px;
+    letter-spacing: 0.15em;
+    font-weight: 300;
+  }
+</style>
+</head>
+<body>
+
+<h1>C3 Octave</h1>
+
+<div class="piano-wrapper" id="piano"></div>
+
+<div class="legend">touch or use keyboard</div>
+
+<button onclick="window.close()" style="
+  position: fixed;
+  bottom: 30px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: transparent;
+  border: 1px solid #3a7fc1;
+  color: #3a7fc1;
+  font-family: 'DM Mono', monospace;
+  font-size: 11px;
+  font-weight: 300;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  padding: 10px 28px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+" onmouseover="this.style.borderColor='#6ab0e8';this.style.color='#6ab0e8'" onmouseout="this.style.borderColor='#3a7fc1';this.style.color='#3a7fc1'">Exit</button>
+
+<script>
+// Notes: C3 to C4
+// White keys: C D E F G A B C  (8 keys)
+// Black keys: C# D# F# G# A#   (5 keys)
+
+const WHITE_NOTES = [
+  { note: 'C3',  freq: 130.81, key: 'a' },
+  { note: 'D3',  freq: 146.83, key: 's' },
+  { note: 'E3',  freq: 164.81, key: 'd' },
+  { note: 'F3',  freq: 174.61, key: 'f' },
+  { note: 'G3',  freq: 196.00, key: 'g' },
+  { note: 'A3',  freq: 220.00, key: 'h' },
+  { note: 'B3',  freq: 246.94, key: 'j' },
+  { note: 'C4',  freq: 261.63, key: 'k' },
+];
+
+// black key positions: after which white key index (0-based), and offset
+const BLACK_NOTES = [
+  { note: 'C#3', freq: 138.59, key: 'w', afterWhite: 0 },
+  { note: 'D#3', freq: 155.56, key: 'e', afterWhite: 1 },
+  { note: 'F#3', freq: 185.00, key: 't', afterWhite: 3 },
+  { note: 'G#3', freq: 207.65, key: 'y', afterWhite: 4 },
+  { note: 'A#3', freq: 233.08, key: 'u', afterWhite: 5 },
+];
+
+// Audio
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+const activeOscillators = {};
+
+function playNote(freq, id) {
+  if (activeOscillators[id]) return;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+  gain.gain.setValueAtTime(0, audioCtx.currentTime);
+  gain.gain.linearRampToValueAtTime(0.5, audioCtx.currentTime + 0.01);
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
+  osc.start();
+  activeOscillators[id] = { osc, gain };
+}
+
+function stopNote(id) {
+  if (!activeOscillators[id]) return;
+  const { osc, gain } = activeOscillators[id];
+  gain.gain.setValueAtTime(gain.gain.value, audioCtx.currentTime);
+  gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.15);
+  osc.stop(audioCtx.currentTime + 0.15);
+  delete activeOscillators[id];
+}
+
+// Build DOM
+const piano = document.getElementById('piano');
+const WHITE_KEY_WIDTH = 72;
+const WHITE_KEY_GAP = 2;
+
+// White keys container
+const whiteContainer = document.createElement('div');
+whiteContainer.style.cssText = 'display:flex; position:relative;';
+
+WHITE_NOTES.forEach((n, i) => {
+  const el = document.createElement('div');
+  el.className = 'white-key';
+  el.dataset.id = n.note;
+  el.dataset.freq = n.freq;
+  const hint = document.createElement('span');
+  hint.className = 'kb-hint';
+  hint.textContent = n.key.toUpperCase();
+  el.appendChild(hint);
+  bindKey(el, n.note, n.freq);
+  whiteContainer.appendChild(el);
+});
+
+piano.appendChild(whiteContainer);
+
+// Black keys — positioned absolutely over white key container
+BLACK_NOTES.forEach((n) => {
+  const el = document.createElement('div');
+  el.className = 'black-key';
+  el.dataset.id = n.note;
+  el.dataset.freq = n.freq;
+  const hint = document.createElement('span');
+  hint.className = 'kb-hint';
+  hint.textContent = n.key.toUpperCase();
+  el.appendChild(hint);
+
+  // Position: center on gap between white key [afterWhite] and [afterWhite+1]
+  const leftOffset = (n.afterWhite + 1) * (WHITE_KEY_WIDTH + WHITE_KEY_GAP) - 22 - 1;
+  el.style.left = leftOffset + 'px';
+  el.style.position = 'absolute';
+
+  bindKey(el, n.note, n.freq);
+  whiteContainer.appendChild(el);
+});
+
+function bindKey(el, id, freq) {
+  // Touch
+  el.addEventListener('touchstart', e => {
+    e.preventDefault();
+    audioCtx.resume();
+    el.classList.add('active');
+    playNote(freq, id);
+  }, { passive: false });
+
+  el.addEventListener('touchend', e => {
+    e.preventDefault();
+    el.classList.remove('active');
+    stopNote(id);
+  }, { passive: false });
+
+  // Mouse (for desktop testing)
+  el.addEventListener('mousedown', e => {
+    audioCtx.resume();
+    el.classList.add('active');
+    playNote(freq, id);
+  });
+  el.addEventListener('mouseup', () => {
+    el.classList.remove('active');
+    stopNote(id);
+  });
+  el.addEventListener('mouseleave', () => {
+    if (el.classList.contains('active')) {
+      el.classList.remove('active');
+      stopNote(id);
+    }
+  });
+}
+
+// Keyboard support
+const keyMap = {};
+[...WHITE_NOTES, ...BLACK_NOTES].forEach(n => { keyMap[n.key] = n; });
+
+document.addEventListener('keydown', e => {
+  if (e.repeat) return;
+  const n = keyMap[e.key.toLowerCase()];
+  if (!n) return;
+  audioCtx.resume();
+  const el = document.querySelector(`[data-id="${n.note}"]`);
+  if (el) el.classList.add('active');
+  playNote(n.freq, n.note);
+});
+
+document.addEventListener('keyup', e => {
+  const n = keyMap[e.key.toLowerCase()];
+  if (!n) return;
+  const el = document.querySelector(`[data-id="${n.note}"]`);
+  if (el) el.classList.remove('active');
+  stopNote(n.note);
+});
+</script>
+</body>
+</html>
