@@ -1,0 +1,2448 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neuropsych Patientendatenbank v5.0</title>
+
+    <!-- ============================================================
+         STYLE SECTION
+         Everything visual lives here.
+         Think of this as your COLOR and SETCOLOR commands in GFA BASIC.
+         We use CSS variables (--varname) so colors are defined once
+         at the top and reused everywhere — change one line, change
+         the whole app.
+    ============================================================ -->
+    <style>
+
+        /* ----------------------------------------------------------
+           ROOT VARIABLES
+           The entire color scheme is controlled from here.
+           --green      : main text color
+           --green-dim  : greyed out text (discontinued patients)
+           --green-bright: highlighted / selected items
+           --black      : background
+           --amber      : warnings and confirmations
+           --red        : errors and deletions
+        ---------------------------------------------------------- */
+        :root {
+            --green:        #33ff33;
+            --green-dim:    #1a7a1a;
+            --green-bright: #99ff99;
+            --green-border: #22aa22;
+            --black:        #0a0a0a;
+            --amber:        #ffb000;
+            --red:          #ff3333;
+            --font:         'Courier New', Courier, monospace;
+            --font-size:    15px;
+        }
+
+        /* ----------------------------------------------------------
+           GLOBAL RESET
+           Remove all browser default margins and padding.
+           Every browser adds its own spacing — we want none of that.
+        ---------------------------------------------------------- */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        /* ----------------------------------------------------------
+           BODY
+           The black canvas everything sits on.
+           overflow-x: hidden prevents horizontal scrollbar.
+        ---------------------------------------------------------- */
+        body {
+            background-color: var(--black);
+            color: var(--green);
+            font-family: var(--font);
+            font-size: var(--font-size);
+            line-height: 1.6;
+            overflow-x: hidden;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        /* ----------------------------------------------------------
+           SCREEN CONTAINER
+           Each "screen" (main menu, patient list, etc.) is a div
+           with class="screen". Only one is visible at a time.
+           The active one has class="screen active".
+           display:none hides it, display:block shows it.
+        ---------------------------------------------------------- */
+        .screen {
+            display: none;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .screen.active {
+            display: block;
+        }
+
+        /* ----------------------------------------------------------
+           BOX DRAWING
+           The DOS-style bordered boxes are built with CSS border
+           and the box-drawing characters in the HTML.
+           .box        : a standard bordered box
+           .box-title  : the title line inside a box
+        ---------------------------------------------------------- */
+        .box {
+            border: 1px solid var(--green-border);
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .box-title {
+            color: var(--green-bright);
+            border-bottom: 1px solid var(--green-border);
+            padding-bottom: 8px;
+            margin-bottom: 16px;
+            font-size: 16px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        /* ----------------------------------------------------------
+           APP HEADER
+           The top bar shown on every screen.
+           Shows app name, version, and active KW.
+        ---------------------------------------------------------- */
+        .app-header {
+            border: 1px solid var(--green-border);
+            padding: 12px 20px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .app-header .app-title {
+            color: var(--green-bright);
+            font-size: 14px;
+            letter-spacing: 3px;
+        }
+
+        .app-header .app-kw {
+            color: var(--amber);
+            font-size: 13px;
+        }
+
+        /* ----------------------------------------------------------
+           MAIN MENU
+           The numbered list of options on the main screen.
+        ---------------------------------------------------------- */
+        .menu-list {
+            list-style: none;
+            padding: 10px 0;
+        }
+
+        .menu-list li {
+            padding: 10px 20px;
+            cursor: pointer;
+            transition: background 0.1s;
+        }
+
+        .menu-list li:hover {
+            background: var(--green-border);
+            color: var(--green-bright);
+        }
+
+        .menu-list li .menu-key {
+            color: var(--green-bright);
+            margin-right: 12px;
+        }
+
+        /* ----------------------------------------------------------
+           PROMPT LINE
+           The bottom line that tells the user what keys to press.
+           Classic DOS style — always visible at the bottom of a screen.
+        ---------------------------------------------------------- */
+        .prompt {
+            border-top: 1px solid var(--green-border);
+            padding-top: 10px;
+            margin-top: 20px;
+            color: var(--green-dim);
+            font-size: 13px;
+        }
+
+        .prompt .key {
+            color: var(--green-bright);
+            background: var(--green-border);
+            padding: 1px 5px;
+            margin: 0 3px;
+        }
+
+        /* ----------------------------------------------------------
+           PATIENT LIST
+           Each row in the patient list.
+           .patient-row         : active patient
+           .patient-row.dimmed  : discontinued patient (greyed out)
+           .patient-row.selected: currently highlighted row
+        ---------------------------------------------------------- */
+        .patient-row {
+            display: grid;
+            grid-template-columns: 3ch 22ch 4ch 5ch 4ch 6ch 1fr;
+            gap: 0 8px;
+            padding: 5px 8px;
+            cursor: pointer;
+            border-bottom: 1px solid #111;
+        }
+
+        .patient-row:hover,
+        .patient-row.selected {
+            background: var(--green-border);
+            color: var(--green-bright);
+        }
+
+        .patient-row.dimmed {
+            color: var(--green-dim);
+        }
+
+        .patient-row.dimmed:hover {
+            background: #111;
+            color: var(--green-dim);
+        }
+
+        /* Column headers for the patient list */
+        .patient-list-header {
+            display: grid;
+            grid-template-columns: 3ch 22ch 4ch 5ch 4ch 6ch 1fr;
+            gap: 0 8px;
+            padding: 5px 8px;
+            color: var(--green-bright);
+            border-bottom: 1px solid var(--green-border);
+            margin-bottom: 4px;
+            font-size: 12px;
+            letter-spacing: 1px;
+        }
+
+        /* ----------------------------------------------------------
+           FORM ELEMENTS
+           Input fields and selects styled to look like DOS input.
+           The green underline replaces the usual browser box.
+        ---------------------------------------------------------- */
+        .form-row {
+            display: flex;
+            align-items: baseline;
+            margin-bottom: 12px;
+            gap: 12px;
+        }
+
+        .form-label {
+            color: var(--green-dim);
+            min-width: 220px;
+            font-size: 14px;
+        }
+
+        .form-input {
+            background: transparent;
+            border: none;
+            border-bottom: 1px solid var(--green-border);
+            color: var(--green);
+            font-family: var(--font);
+            font-size: var(--font-size);
+            padding: 2px 6px;
+            outline: none;
+            min-width: 200px;
+        }
+
+        .form-input:focus {
+            border-bottom-color: var(--green-bright);
+            color: var(--green-bright);
+        }
+
+        /* Textarea for multiline fields (Notizen, Sperrzeiten) */
+        textarea.form-input {
+            resize: vertical;
+            min-height: 80px;
+            border: 1px solid var(--green-border);
+            padding: 8px;
+            width: 100%;
+        }
+
+        textarea.form-input:focus {
+            border-color: var(--green-bright);
+        }
+
+        /* ----------------------------------------------------------
+           CHECKBOX FLAGS
+           The ( ) and (X) style toggles.
+           These are not real HTML checkboxes — they are spans
+           that JavaScript flips between "( )" and "(X)" when
+           the user presses spacebar.
+        ---------------------------------------------------------- */
+        .flag-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 10px;
+            cursor: pointer;
+        }
+
+        .flag-box {
+            color: var(--green-bright);
+            font-size: 16px;
+            min-width: 30px;
+        }
+
+        .flag-label {
+            color: var(--green);
+        }
+
+        .flag-row:hover .flag-label {
+            color: var(--green-bright);
+        }
+
+        /* ----------------------------------------------------------
+           TABS
+           The [1] STAMMDATEN  [2] THERAPIE etc. tab bar.
+           Active tab is highlighted.
+        ---------------------------------------------------------- */
+        .tab-bar {
+            display: flex;
+            gap: 0;
+            margin-bottom: 20px;
+            border-bottom: 1px solid var(--green-border);
+        }
+
+        .tab {
+            padding: 8px 20px;
+            cursor: pointer;
+            color: var(--green-dim);
+            border: 1px solid transparent;
+            border-bottom: none;
+            font-family: var(--font);
+            font-size: 13px;
+            background: transparent;
+        }
+
+        .tab.active {
+            color: var(--green-bright);
+            border-color: var(--green-border);
+            background: #111;
+            margin-bottom: -1px;
+        }
+
+        .tab:hover:not(.active) {
+            color: var(--green);
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* ----------------------------------------------------------
+           BUTTONS
+           DOS-style action buttons.
+           .btn-primary : main action (save, generate)
+           .btn-danger  : destructive action (delete, clear)
+           .btn-neutral : secondary action (cancel, back)
+        ---------------------------------------------------------- */
+        .btn {
+            background: transparent;
+            border: 1px solid var(--green-border);
+            color: var(--green);
+            font-family: var(--font);
+            font-size: 14px;
+            padding: 8px 20px;
+            cursor: pointer;
+            margin-right: 8px;
+            margin-top: 8px;
+            letter-spacing: 1px;
+        }
+
+        .btn:hover {
+            background: var(--green-border);
+            color: var(--green-bright);
+        }
+
+        .btn-primary {
+            border-color: var(--green);
+            color: var(--green-bright);
+        }
+
+        .btn-primary:hover {
+            background: var(--green);
+            color: var(--black);
+        }
+
+        .btn-danger {
+            border-color: var(--red);
+            color: var(--red);
+        }
+
+        .btn-danger:hover {
+            background: var(--red);
+            color: var(--black);
+        }
+
+        .btn-amber {
+            border-color: var(--amber);
+            color: var(--amber);
+        }
+
+        .btn-amber:hover {
+            background: var(--amber);
+            color: var(--black);
+        }
+
+        /* ----------------------------------------------------------
+           STATUS MESSAGE BAR
+           The single line at the top that shows feedback:
+           "Patient gespeichert." or "Fehler: Name fehlt." etc.
+           Color changes based on type: success / error / warning.
+        ---------------------------------------------------------- */
+        .status-bar {
+            padding: 8px 20px;
+            margin-bottom: 16px;
+            font-size: 13px;
+            min-height: 34px;
+            border-left: 3px solid transparent;
+            display: none;
+        }
+
+        .status-bar.visible {
+            display: block;
+        }
+
+        .status-bar.success {
+            border-left-color: var(--green);
+            color: var(--green-bright);
+        }
+
+        .status-bar.error {
+            border-left-color: var(--red);
+            color: var(--red);
+        }
+
+        .status-bar.warning {
+            border-left-color: var(--amber);
+            color: var(--amber);
+        }
+
+        /* ----------------------------------------------------------
+           WEEKLY PLAN OUTPUT
+           The generated plan text. Monospace, preformatted.
+           This is what gets copied to clipboard or printed.
+        ---------------------------------------------------------- */
+        #plan-output {
+            background: #050505;
+            border: 1px solid var(--green-border);
+            padding: 20px;
+            font-size: 13px;
+            line-height: 1.5;
+            white-space: pre;
+            overflow-x: auto;
+            margin: 16px 0;
+        }
+
+        /* ----------------------------------------------------------
+           PRINT STYLES
+           When the user presses [D] to print, the browser applies
+           these styles instead of the screen styles above.
+           We want: white background, black text, landscape A4,
+           and only the plan output visible — no menus or buttons.
+        ---------------------------------------------------------- */
+        @media print {
+            @page {
+                size: A4 landscape;
+                margin: 15mm;
+            }
+
+            body {
+                background: white;
+                color: black;
+            }
+
+            /* Hide everything except the plan output */
+            .app-header,
+            .tab-bar,
+            .btn,
+            .prompt,
+            .status-bar,
+            .plan-controls {
+                display: none !important;
+            }
+
+            #plan-output {
+                background: white;
+                color: black;
+                border: none;
+                font-size: 11px;
+                padding: 0;
+            }
+        }
+
+        /* ----------------------------------------------------------
+           CURSOR BLINK
+           The classic blinking cursor effect on the prompt line.
+           Pure CSS animation — no JavaScript needed.
+        ---------------------------------------------------------- */
+        .cursor {
+            display: inline-block;
+            width: 8px;
+            height: 15px;
+            background: var(--green);
+            animation: blink 1s step-end infinite;
+            vertical-align: text-bottom;
+            margin-left: 2px;
+        }
+
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50%       { opacity: 0; }
+        }
+
+        /* ----------------------------------------------------------
+           SORT INDICATOR
+           Small arrow next to the active sort column header.
+        ---------------------------------------------------------- */
+        .sort-active {
+            color: var(--green-bright);
+        }
+
+        .sort-active::after {
+            content: ' ▼';
+            font-size: 10px;
+        }
+
+        /* ----------------------------------------------------------
+           DIVIDER LINE
+           A simple horizontal rule, DOS style.
+        ---------------------------------------------------------- */
+        .divider {
+            border: none;
+            border-top: 1px solid var(--green-border);
+            margin: 16px 0;
+        }
+
+        /* ----------------------------------------------------------
+           MODAL / CONFIRMATION OVERLAY
+           When user presses [delete] or [Woche abschließen],
+           a confirmation box appears over the current screen.
+        ---------------------------------------------------------- */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 100;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-overlay.visible {
+            display: flex;
+        }
+
+        .modal-box {
+            background: var(--black);
+            border: 1px solid var(--amber);
+            padding: 30px 40px;
+            max-width: 500px;
+            width: 90%;
+        }
+
+        .modal-title {
+            color: var(--amber);
+            font-size: 15px;
+            letter-spacing: 2px;
+            margin-bottom: 16px;
+        }
+
+        .modal-text {
+            color: var(--green);
+            margin-bottom: 24px;
+            line-height: 1.8;
+        }
+
+    </style>
+</head>
+<body>
+
+    <!-- ============================================================
+         STATUS BAR
+         Shared across all screens. JavaScript fills this with
+         feedback messages and makes it visible/hidden.
+         Lives outside the screens so it's always accessible.
+    ============================================================ -->
+    <div id="status-bar" class="status-bar"></div>
+
+
+    <!-- ============================================================
+         SCREEN 0: HAUPTMENÜ
+         The main menu. First thing the user sees.
+         Each <li> will get an onclick handler in the JS section.
+    ============================================================ -->
+    <div id="screen-menu" class="screen active">
+
+        <div class="app-header">
+            <span class="app-title">
+                ╔═╗ NEUROPSYCH PATIENTENDATENBANK v5.0
+            </span>
+            <span class="app-kw" id="header-kw">
+                KW --/----
+            </span>
+        </div>
+
+        <div class="box">
+            <div class="box-title">Hauptmenü</div>
+
+            <ul class="menu-list">
+                <li onclick="showScreen('patients')">
+                    <span class="menu-key">[1]</span> Patientenliste
+                </li>
+                <li onclick="showScreen('form')">
+                    <span class="menu-key">[2]</span> Patient hinzufügen
+                </li>
+                <li onclick="showScreen('plan')">
+                    <span class="menu-key">[3]</span> Wochenplan erstellen
+                </li>
+                <li onclick="showScreen('data')">
+                    <span class="menu-key">[4]</span> Daten (Export / Import)
+                </li>
+                <li onclick="showScreen('info')">
+                    <span class="menu-key">[5]</span> Info
+                </li>
+            </ul>
+
+            <hr class="divider">
+
+            <div style="padding: 0 20px; color: var(--green-dim); font-size: 13px;">
+                Aktive KW: <span id="menu-kw" style="color: var(--amber);">--/----</span>
+                &nbsp;&nbsp;
+                <span class="key" style="color: var(--green-bright); cursor: pointer;"
+                      onclick="changeKW()">[K] KW ändern</span>
+            </div>
+        </div>
+
+        <div class="prompt">
+            Taste <span class="key">[1]</span> bis
+            <span class="key">[5]</span> drücken &nbsp;|&nbsp;
+            <span class="key">[K]</span> Kalenderwoche ändern
+            <span class="cursor"></span>
+        </div>
+
+    </div><!-- end screen-menu -->
+
+
+    <!-- ============================================================
+         SCREEN 1: PATIENTENLISTE
+         Shows all patients, sorted, with action options.
+         The list itself is rendered by JavaScript into #patient-list.
+    ============================================================ -->
+    <div id="screen-patients" class="screen">
+
+        <div class="app-header">
+            <span class="app-title">PATIENTENLISTE</span>
+            <span class="app-kw" id="patients-kw">KW --/----</span>
+        </div>
+
+        <!-- Sort controls -->
+        <div style="margin-bottom: 12px; font-size: 13px; color: var(--green-dim);">
+            Sortierung:
+            <span class="key" style="cursor:pointer; color: var(--green-bright);"
+                  onclick="sortPatients('name')">[N] Name</span>
+            <span class="key" style="cursor:pointer; color: var(--green-bright);"
+                  onclick="sortPatients('station')">[S] Station</span>
+            <span class="key" style="cursor:pointer; color: var(--green-bright);"
+                  onclick="sortPatients('priority')">[P] Priorität</span>
+            &nbsp;&nbsp;
+            <span id="sort-indicator" style="color: var(--green-dim);">
+                (aktuell: Priorität)
+            </span>
+        </div>
+
+        <!-- Column headers -->
+        <div class="patient-list-header">
+            <span>#</span>
+            <span>NAME</span>
+            <span>STAT</span>
+            <span>TYP</span>
+            <span>P</span>
+            <span>SIT/WO</span>
+            <span>STATUS</span>
+        </div>
+
+        <!-- Patient rows rendered here by JS -->
+        <div id="patient-list">
+            <!-- JavaScript will fill this in -->
+        </div>
+
+        <!-- Action panel — shown when a patient is selected -->
+        <div id="patient-actions" class="box" style="display:none; margin-top: 16px;">
+            <div class="box-title" id="selected-patient-name">Patient wählen</div>
+            <button class="btn btn-primary" onclick="editSelectedPatient()">
+                [1] Bearbeiten
+            </button>
+            <button class="btn btn-amber" onclick="toggleSelectedPatientStatus()">
+                [2] Status umschalten
+            </button>
+            <button class="btn btn-danger" onclick="deleteSelectedPatient()">
+                [3] Löschen
+            </button>
+        </div>
+
+        <div class="prompt">
+            <span class="key">[N]</span> Name &nbsp;
+            <span class="key">[S]</span> Station &nbsp;
+            <span class="key">[P]</span> Priorität &nbsp;|&nbsp;
+            Nummer eingeben um Patient zu wählen &nbsp;|&nbsp;
+            <span class="key">[0]</span> Hauptmenü
+        </div>
+
+    </div><!-- end screen-patients -->
+
+
+    <!-- ============================================================
+         SCREEN 2: PATIENT FORMULAR (Add / Edit)
+         Same form used for both adding new patients and editing
+         existing ones. A hidden field stores the patient ID when
+         editing (empty = new patient).
+         The form title changes to show the mode.
+    ============================================================ -->
+    <div id="screen-form" class="screen">
+
+        <div class="app-header">
+            <span class="app-title" id="form-title">PATIENT HINZUFÜGEN</span>
+            <span class="app-kw" id="form-kw">KW --/----</span>
+        </div>
+
+        <!-- Hidden field: stores patient ID when editing, empty when new -->
+        <input type="hidden" id="patient-id" value="">
+
+        <!-- Tab navigation bar -->
+        <div class="tab-bar">
+            <button class="tab active" onclick="switchTab(1)">[1] STAMMDATEN</button>
+            <button class="tab"        onclick="switchTab(2)">[2] THERAPIE</button>
+            <button class="tab"        onclick="switchTab(3)">[3] KLINIK</button>
+            <button class="tab"        onclick="switchTab(4)">[4] NOTIZEN</button>
+        </div>
+
+        <!-- TAB 1: STAMMDATEN -->
+        <div id="tab-1" class="tab-content active">
+            <div class="box">
+                <div class="box-title">Stammdaten</div>
+
+                <div class="form-row">
+                    <label class="form-label">Name (Nachname, Vorname):</label>
+                    <input type="text" id="f-name" class="form-input"
+                           placeholder="Mustermann, Max">
+                </div>
+                <div class="form-row">
+                    <label class="form-label">Geburtsdatum (TT.MM.JJJJ):</label>
+                    <input type="text" id="f-dob" class="form-input"
+                           placeholder="02.12.1960">
+                </div>
+                <div class="form-row">
+                    <label class="form-label">Aufnahmedatum (TT.MM.JJJJ):</label>
+                    <input type="text" id="f-admission" class="form-input"
+                           placeholder="01.02.2026">
+                </div>
+                <div class="form-row">
+                    <label class="form-label">Behandlungsbeginn (TT.MM.JJJJ):</label>
+                    <input type="text" id="f-treatment-start" class="form-input"
+                           placeholder="03.02.2026">
+                </div>
+                <div class="form-row">
+                    <label class="form-label">Geplante Entlassung (TT.MM.JJJJ):</label>
+                    <input type="text" id="f-planned-discharge" class="form-input"
+                           placeholder="28.02.2026">
+                </div>
+                <div class="form-row">
+                    <label class="form-label">Priorität (1-6, 1=dringendst):</label>
+                    <input type="number" id="f-priority" class="form-input"
+                           min="1" max="6" placeholder="3" style="max-width: 60px;">
+                </div>
+
+                <hr class="divider">
+
+                <!-- Status flag — spacebar toggles between active/discontinued -->
+                <div class="flag-row" onclick="toggleStatusFlag()"
+                     title="Leertaste zum Umschalten">
+                    <span class="flag-box" id="flag-status">( )</span>
+                    <span class="flag-label">Abgemeldet</span>
+                    <span style="color: var(--green-dim); font-size: 12px; margin-left: 8px;">
+                        (Leertaste)
+                    </span>
+                </div>
+
+                <!-- Discontinued reason — only shown when abgemeldet -->
+                <div id="discontinued-fields"
+                     style="display: none; padding-left: 30px; margin-top: 8px;">
+                    <div class="form-row">
+                        <label class="form-label">Abmeldegrund (freier Text):</label>
+                        <input type="text" id="f-discontinued-reason" class="form-input"
+                               placeholder="entlassen / zurückgestellt / ...">
+                    </div>
+                </div>
+
+            </div>
+        </div><!-- end tab-1 -->
+
+        <!-- TAB 2: THERAPIE -->
+        <div id="tab-2" class="tab-content">
+            <div class="box">
+                <div class="box-title">Therapieplanung</div>
+
+                <div class="form-row">
+                    <label class="form-label">Station (1-8):</label>
+                    <input type="number" id="f-station" class="form-input"
+                           min="1" max="8" placeholder="3" style="max-width: 60px;">
+                </div>
+                <div class="form-row">
+                    <label class="form-label">Therapieart (NP / KV / AG):</label>
+                    <input type="text" id="f-therapy-type" class="form-input"
+                           placeholder="NP" style="max-width: 80px;"
+                           oninput="autocorrectTherapyType(this)">
+                    <span style="color: var(--green-dim); font-size: 12px;">
+                        (wird automatisch großgeschrieben)
+                    </span>
+                </div>
+                <div class="form-row">
+                    <label class="form-label">Sitzungen pro Woche (1-5):</label>
+                    <input type="number" id="f-sessions" class="form-input"
+                           min="1" max="5" placeholder="2" style="max-width: 60px;">
+                </div>
+                <div class="form-row">
+                    <label class="form-label">Sitzungsdauer in Minuten:</label>
+                    <input type="number" id="f-duration" class="form-input"
+                           placeholder="30" style="max-width: 80px;">
+                    <span style="color: var(--green-dim); font-size: 12px;">
+                        (15 / 30 / 45 / 60)
+                    </span>
+                </div>
+                <div class="form-row">
+                    <label class="form-label">Termine bisher (manuell):</label>
+                    <input type="number" id="f-appointments" class="form-input"
+                           min="0" placeholder="0" style="max-width: 80px;">
+                </div>
+                <div class="form-row">
+                    <label class="form-label">Planungshinweise:</label>
+                    <input type="text" id="f-scheduling-notes" class="form-input"
+                           placeholder="nur vormittags / nicht freitags / ...">
+                </div>
+
+            </div>
+        </div><!-- end tab-2 -->
+
+        <!-- TAB 3: KLINIK -->
+        <div id="tab-3" class="tab-content">
+            <div class="box">
+                <div class="box-title">Klinische Angaben</div>
+
+                <div class="form-row">
+                    <label class="form-label">Diagnosen:</label>
+                    <input type="text" id="f-diagnoses" class="form-input"
+                           placeholder="Schlaganfall, TBI, ...">
+                </div>
+                <div class="form-row">
+                    <label class="form-label">Entlassung wohin:</label>
+                    <input type="text" id="f-discharge-dest" class="form-input"
+                           placeholder="nach Hause / Einrichtung / Reha / ...">
+                </div>
+
+                <hr class="divider">
+
+                <div style="color: var(--green-dim); font-size: 12px; margin-bottom: 12px;">
+                    Leertaste zum Umschalten:
+                </div>
+
+                <!-- Flag checkboxes — all toggled by spacebar / click -->
+                <div class="flag-row" onclick="toggleFlag('flag-no-neuro')">
+                    <span class="flag-box" id="flag-no-neuro">( )</span>
+                    <span class="flag-label">Keine neurologische Diagnose</span>
+                </div>
+                <div class="flag-row" onclick="toggleFlag('flag-license')">
+                    <span class="flag-box" id="flag-license">( )</span>
+                    <span class="flag-label">Führerschein vorhanden</span>
+                </div>
+                <div class="flag-row" onclick="toggleFlag('flag-drive')">
+                    <span class="flag-box" id="flag-drive">( )</span>
+                    <span class="flag-label">Möchte wieder fahren</span>
+                </div>
+                <div class="flag-row" onclick="toggleFlag('flag-working')">
+                    <span class="flag-box" id="flag-working">( )</span>
+                    <span class="flag-label">Erwerbsfähiges Alter</span>
+                </div>
+                <div class="flag-row" onclick="toggleFlag('flag-caregiver')">
+                    <span class="flag-box" id="flag-caregiver">( )</span>
+                    <span class="flag-label">Betreuung vorhanden</span>
+                </div>
+
+            </div>
+        </div><!-- end tab-3 -->
+
+        <!-- TAB 4: NOTIZEN -->
+        <div id="tab-4" class="tab-content">
+            <div class="box">
+                <div class="box-title">Notizen</div>
+                <div class="form-row" style="flex-direction: column; gap: 8px;">
+                    <label class="form-label">Freies Notizfeld:</label>
+                    <textarea id="f-notes" class="form-input"
+                              rows="8"
+                              placeholder="Zusätzliche Informationen..."></textarea>
+                </div>
+            </div>
+        </div><!-- end tab-4 -->
+
+        <!-- Form action buttons -->
+        <div>
+            <button class="btn btn-primary" onclick="savePatient()">
+                [ENTER] Speichern
+            </button>
+            <button class="btn" onclick="goBack()">
+                [0] Abbrechen
+            </button>
+        </div>
+
+        <div class="prompt">
+            <span class="key">[1]</span>-<span class="key">[4]</span> Tab wählen &nbsp;|&nbsp;
+            <span class="key">[ENTER]</span> Speichern &nbsp;|&nbsp;
+            <span class="key">[0]</span> Abbrechen
+        </div>
+
+    </div><!-- end screen-form -->
+
+
+    <!-- ============================================================
+         SCREEN 3: WOCHENPLAN
+         Input fields for plan parameters, then the generated output.
+    ============================================================ -->
+    <div id="screen-plan" class="screen">
+
+        <div class="app-header">
+            <span class="app-title">WOCHENPLAN</span>
+            <span class="app-kw" id="plan-kw">KW --/----</span>
+        </div>
+
+        <div class="box">
+            <div class="box-title">Planparameter</div>
+
+            <div class="form-row">
+                <label class="form-label">Kalenderwoche (KW/JJJJ):</label>
+                <input type="text" id="plan-week" class="form-input"
+                       placeholder="09/2026" style="max-width: 100px;">
+            </div>
+            <div class="form-row">
+                <label class="form-label">Therapeut:</label>
+                <input type="text" id="plan-therapist" class="form-input"
+                       placeholder="von Thomsen">
+            </div>
+            <div class="form-row">
+                <label class="form-label">Abteilung:</label>
+                <input type="text" id="plan-dept" class="form-input"
+                       placeholder="Psychologie">
+            </div>
+            <div class="form-row" style="flex-direction: column; gap: 8px;">
+                <label class="form-label">
+                    Sperrzeiten (freier Text):
+                    <span style="font-size: 11px; color: var(--green-dim);">
+                        z.B. "Di 11-12 Besprechung"
+                    </span>
+                </label>
+                <textarea id="plan-blocked" class="form-input" rows="4"
+                          placeholder="WOCHENTAG    UHRZEIT VON-BIS    GRUND"></textarea>
+            </div>
+        </div>
+
+        <!-- Plan control buttons -->
+        <div class="plan-controls">
+            <button class="btn btn-primary" onclick="generatePlan()">
+                [G] Generieren
+            </button>
+            <button class="btn" onclick="copyPlan()">
+                [K] Kopieren
+            </button>
+            <button class="btn" onclick="printPlan()">
+                [D] Drucken
+            </button>
+            <button class="btn btn-amber" onclick="closeWeek()">
+                [W] Woche abschließen
+            </button>
+            <button class="btn" onclick="goBack()">
+                [0] Zurück
+            </button>
+        </div>
+
+        <!-- Generated plan output — filled by generatePlan() -->
+        <div id="plan-output" style="display: none;">
+            <!-- JavaScript writes the formatted plan text here -->
+        </div>
+
+        <div class="prompt">
+            <span class="key">[G]</span> Generieren &nbsp;|&nbsp;
+            <span class="key">[K]</span> Kopieren &nbsp;|&nbsp;
+            <span class="key">[D]</span> Drucken &nbsp;|&nbsp;
+            <span class="key">[W]</span> Woche abschließen &nbsp;|&nbsp;
+            <span class="key">[0]</span> Zurück
+        </div>
+
+    </div><!-- end screen-plan -->
+
+
+    <!-- ============================================================
+         SCREEN 4: DATEN (Export / Import)
+    ============================================================ -->
+    <div id="screen-data" class="screen">
+
+        <div class="app-header">
+            <span class="app-title">DATEN — EXPORT / IMPORT</span>
+            <span class="app-kw" id="data-kw">KW --/----</span>
+        </div>
+
+        <div class="box">
+            <div class="box-title">JSON (Backup / Wiederherstellung)</div>
+            <p style="color: var(--green-dim); font-size: 13px; margin-bottom: 16px;">
+                JSON ist das native Backup-Format dieser App.
+                Alle Patientendaten werden als Textdatei gespeichert.
+            </p>
+            <button class="btn btn-primary" onclick="exportJSON()">
+                [1] JSON exportieren
+            </button>
+            <button class="btn" onclick="importJSON()">
+                [2] JSON importieren
+            </button>
+            <!-- Hidden file input for JSON import -->
+            <input type="file" id="import-json-file" accept=".json"
+                   style="display:none" onchange="handleJSONImport(event)">
+        </div>
+
+        <div class="box">
+            <div class="box-title">
+                Excel (.xlsx) &nbsp;
+                <span style="color: var(--green-dim); font-size: 11px;">
+                    ← externe Bibliothek: SheetJS
+                </span>
+            </div>
+            <p style="color: var(--green-dim); font-size: 13px; margin-bottom: 16px;">
+                Excel-Import liest Patientendaten aus einer .xlsx Datei.
+                Export erstellt eine .xlsx Datei aus den aktuellen Daten.
+            </p>
+            <button class="btn btn-primary" onclick="exportExcel()">
+                [3] Excel exportieren
+            </button>
+            <button class="btn" onclick="importExcel()">
+                [4] Excel importieren
+            </button>
+            <!-- Hidden file input for Excel import -->
+            <input type="file" id="import-excel-file" accept=".xlsx,.xls"
+                   style="display:none" onchange="handleExcelImport(event)">
+        </div>
+
+        <div class="prompt">
+            <span class="key">[1]</span> JSON export &nbsp;|&nbsp;
+            <span class="key">[2]</span> JSON import &nbsp;|&nbsp;
+            <span class="key">[3]</span> Excel export &nbsp;|&nbsp;
+            <span class="key">[4]</span> Excel import &nbsp;|&nbsp;
+            <span class="key">[0]</span> Zurück
+            <button class="btn" onclick="goBack()" style="float:right">
+                [0] Zurück
+            </button>
+        </div>
+
+    </div><!-- end screen-data -->
+
+
+    <!-- ============================================================
+         SCREEN 5: INFO
+    ============================================================ -->
+    <div id="screen-info" class="screen">
+
+        <div class="app-header">
+            <span class="app-title">INFO</span>
+            <span class="app-kw" id="info-kw">KW --/----</span>
+        </div>
+
+        <div class="box">
+            <div class="box-title">Neuropsych Patientendatenbank v5.0</div>
+            <pre style="color: var(--green); line-height: 2;">
+  Entwickelt für: Leezen Neuropsychologie
+  Version:        5.0
+  Dateiformat:    Einzelne HTML-Datei (offline)
+  Datenspeicher:  Browser localStorage
+
+  ─────────────────────────────────────────────
+
+  KURZANLEITUNG:
+  [1-5]       Menüpunkt wählen
+  [0]         Zurück / Abbrechen
+  [K]         Kalenderwoche ändern
+  LEERTASTE   Flags / Status umschalten
+  [G]         Wochenplan generieren
+  [W]         Woche abschließen
+
+  ─────────────────────────────────────────────
+
+  DATENSICHERUNG:
+  Daten werden im Browser gespeichert.
+  Regelmäßiger JSON-Export empfohlen.
+            </pre>
+        </div>
+
+        <div class="prompt">
+            <span class="key">[0]</span> Zurück
+            <button class="btn" onclick="goBack()" style="float:right">
+                [0] Zurück
+            </button>
+        </div>
+
+    </div><!-- end screen-info -->
+
+
+    <!-- ============================================================
+         MODAL: CONFIRMATION DIALOG
+         Used for: delete patient, Woche abschließen.
+         JavaScript fills in the title and message,
+         then sets the confirm button's onclick action.
+    ============================================================ -->
+    <div id="modal" class="modal-overlay">
+        <div class="modal-box">
+            <div class="modal-title" id="modal-title">BESTÄTIGUNG</div>
+            <div class="modal-text"  id="modal-text">Sind Sie sicher?</div>
+            <button class="btn btn-danger" id="modal-confirm">
+                [J] Ja, bestätigen
+            </button>
+            <button class="btn" onclick="closeModal()">
+                [N] Nein, abbrechen
+            </button>
+        </div>
+    </div>
+
+
+    <!-- ============================================================
+         SCRIPT SECTION
+         All the logic lives here.
+         Think of this as your main program in GFA BASIC —
+         the part after the variable declarations where things
+         actually happen.
+
+         STRUCTURE:
+         1. Global variables  (your DIM statements)
+         2. Initialization    (runs when page loads)
+         3. Screen navigation (showScreen, goBack)
+         4. KW utilities      (getCurrentKW, formatKW, etc.)
+         5. Patient CRUD      (add, edit, save, delete)
+         6. Patient list      (render, sort)
+         7. Form handling     (fill form, read form, flags)
+         8. Weekly plan       (generate, copy, print)
+         9. Data management   (JSON export/import, Excel)
+        10. Keyboard handler  (global keydown listener)
+        11. Utilities         (showStatus, modal, dates)
+    ============================================================ -->
+    <script>
+
+    // ============================================================
+    // 1. GLOBAL VARIABLES
+    // These are the "DIM" statements — the main data containers.
+    // patients[] is your array of patient objects (see data model).
+    // activeKW holds the current planning week.
+    // currentScreen tracks which screen is visible.
+    // selectedPatientId tracks which patient is selected in the list.
+    // previousScreen enables the "go back" function.
+    // ============================================================
+
+    var patients        = [];       // Array of patient objects
+    var activeKW        = null;     // { week: 9, year: 2026 }
+    var currentScreen   = 'menu';   // ID of the currently visible screen
+    var previousScreen  = 'menu';   // ID of the screen we came from
+    var selectedPatientId = null;   // ID of the selected patient (or null)
+    var currentSort     = 'priority'; // 'name' | 'station' | 'priority'
+
+    // Storage keys — we namespace them to avoid conflicts
+    // with other apps in the same browser.
+    var STORAGE_KEY_PATIENTS = 'neuropsych_v5_patients';
+    var STORAGE_KEY_KW       = 'neuropsych_v5_kw';
+    var STORAGE_KEY_PLAN     = 'neuropsych_v5_plan';  // saves therapist/dept
+
+
+    // ============================================================
+    // 2. INITIALIZATION
+    // This runs automatically when the page finishes loading.
+    // Equivalent to the first lines of your GFA BASIC program.
+    // ============================================================
+
+    document.addEventListener('DOMContentLoaded', function() {
+
+        // Load saved patients from localStorage (or start empty)
+        loadPatients();
+
+        // Load or initialize the active KW
+        loadActiveKW();
+
+        // Load saved plan settings (therapist name, dept)
+        loadPlanSettings();
+
+        // Update all KW displays across screens
+        updateKWDisplays();
+
+        // Start listening for keyboard input
+        document.addEventListener('keydown', handleKeyDown);
+
+        // Show the main menu
+        showScreen('menu');
+
+    });
+
+
+    // ============================================================
+    // 11. UTILITIES — DATE FUNCTIONS
+    // These are the smallest building blocks. Every other section
+    // that deals with dates calls these functions.
+    // We build them first so everything else can rely on them.
+    // ============================================================
+
+    // parseDate: converts a German date string "dd.mm.yyyy" into
+    // a JavaScript Date object that we can do calculations with.
+    // Returns null if the string is empty or invalid.
+    function parseDate(str) {
+        if (!str || str.trim() === '') return null;
+        var parts = str.trim().split('.');
+        if (parts.length !== 3) return null;
+        // Date constructor wants: year, month (0-based!), day
+        // So month 12 (Dezember) becomes 11 in JavaScript. Confusing but true.
+        var d = new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
+        if (isNaN(d.getTime())) return null;
+        return d;
+    }
+
+    // formatDate: converts a JavaScript Date object back to
+    // German format "dd.mm.yyyy" with leading zeros.
+    // e.g. March 5 2026 → "05.03.2026"
+    function formatDate(date) {
+        if (!date) return '';
+        var day   = String(date.getDate()).padStart(2, '0');
+        var month = String(date.getMonth() + 1).padStart(2, '0'); // +1 because 0-based
+        var year  = date.getFullYear();
+        return day + '.' + month + '.' + year;
+    }
+
+    // getKWFromDate: calculates the ISO week number (KW) for a given Date.
+    // ISO weeks start on Monday. Week 1 is the week containing the first Thursday.
+    // This is the standard used in Germany and most of Europe.
+    function getKWFromDate(date) {
+        // Copy the date so we don't modify the original
+        var d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+        // ISO week: set to nearest Thursday (day 4), then find week 1
+        d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+        var yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+        var weekNo = Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+        return { week: weekNo, year: d.getUTCFullYear() };
+    }
+
+    // getDateRangeOfKW: given a week number and year,
+    // returns the Monday and Friday of that week as formatted strings.
+    // Used in the weekly plan header: "KW 09 (23.02. – 27.02.2026)"
+    function getDateRangeOfKW(week, year) {
+        // Find Jan 4 of the year (always in week 1 by ISO definition)
+        var jan4 = new Date(Date.UTC(year, 0, 4));
+        // Find the Monday of week 1
+        var dayOfWeek = jan4.getUTCDay() || 7; // make Sunday = 7
+        var monday1 = new Date(jan4);
+        monday1.setUTCDate(jan4.getUTCDate() - dayOfWeek + 1);
+        // Now jump to the target week
+        var targetMonday = new Date(monday1);
+        targetMonday.setUTCDate(monday1.getUTCDate() + (week - 1) * 7);
+        var targetFriday = new Date(targetMonday);
+        targetFriday.setUTCDate(targetMonday.getUTCDate() + 4);
+        return {
+            monday: formatDate(targetMonday),
+            friday: formatDate(targetFriday)
+        };
+    }
+
+    // formatKW: turns the activeKW object into a display string.
+    // { week: 9, year: 2026 } → "09/2026"
+    function formatKW(kw) {
+        if (!kw) return '--/----';
+        return String(kw.week).padStart(2, '0') + '/' + kw.year;
+    }
+
+    // isInKW: checks whether a date string "dd.mm.yyyy" falls
+    // within a given KW object { week, year }.
+    // Used to decide: is this patient "neu" or "abgemeldet" this week?
+    function isInKW(dateStr, kw) {
+        if (!dateStr || !kw) return false;
+        var d = parseDate(dateStr);
+        if (!d) return false;
+        var dKW = getKWFromDate(d);
+        return dKW.week === kw.week && dKW.year === kw.year;
+    }
+
+
+    // ============================================================
+    // 11b. UTILITIES — UI FEEDBACK
+    // showStatus: displays a message in the status bar at the top.
+    // type can be 'success', 'error', or 'warning'.
+    // The message disappears automatically after 3 seconds.
+    // ============================================================
+
+    function showStatus(msg, type) {
+        var bar = document.getElementById('status-bar');
+        bar.textContent = '► ' + msg;
+        bar.className = 'status-bar visible ' + (type || 'success');
+        // Clear any existing timer, then set a new one
+        clearTimeout(bar._timer);
+        bar._timer = setTimeout(function() {
+            bar.classList.remove('visible');
+        }, 3000);
+    }
+
+
+    // ============================================================
+    // 11c. UTILITIES — MODAL DIALOG
+    // showModal: displays the confirmation overlay.
+    // onConfirm is a function that runs when the user clicks [J].
+    // closeModal: hides it again.
+    // ============================================================
+
+    function showModal(title, text, onConfirm) {
+        document.getElementById('modal-title').textContent = title;
+        document.getElementById('modal-text').textContent  = text;
+        document.getElementById('modal-confirm').onclick   = function() {
+            closeModal();
+            onConfirm();
+        };
+        document.getElementById('modal').classList.add('visible');
+    }
+
+    function closeModal() {
+        document.getElementById('modal').classList.remove('visible');
+    }
+
+
+    // ============================================================
+    // 3. SCREEN NAVIGATION
+    // showScreen: hides all screens, shows the requested one.
+    // Also remembers the previous screen so goBack() works.
+    // goBack: returns to the screen we came from.
+    // ============================================================
+
+    function showScreen(name) {
+        // Remember where we are before switching (for goBack)
+        previousScreen = currentScreen;
+        currentScreen  = name;
+
+        // Hide all screens by removing 'active' class
+        var screens = document.querySelectorAll('.screen');
+        screens.forEach(function(s) { s.classList.remove('active'); });
+
+        // Show the requested screen
+        var target = document.getElementById('screen-' + name);
+        if (target) {
+            target.classList.add('active');
+        } else {
+            // Fallback to menu if screen ID not found
+            document.getElementById('screen-menu').classList.add('active');
+            currentScreen = 'menu';
+        }
+
+        // When showing the patient list, always re-render it
+        // so it reflects any changes made in the form
+        if (name === 'patients') {
+            renderPatientList();
+        }
+
+        // When showing the plan screen, pre-fill the KW field
+        if (name === 'plan') {
+            var planWeekInput = document.getElementById('plan-week');
+            if (planWeekInput && activeKW) {
+                planWeekInput.value = formatKW(activeKW);
+            }
+        }
+
+        // Reset selected patient when leaving patient list
+        if (name !== 'patients') {
+            selectedPatientId = null;
+            var actions = document.getElementById('patient-actions');
+            if (actions) actions.style.display = 'none';
+        }
+    }
+
+    function goBack() {
+        showScreen(previousScreen);
+    }
+
+
+    // ============================================================
+    // 4. KW MANAGEMENT
+    // loadActiveKW: reads saved KW from localStorage, or uses today.
+    // saveActiveKW: writes current activeKW to localStorage.
+    // updateKWDisplays: refreshes all the KW text elements on screen.
+    // changeKW: prompts the user to enter a new KW.
+    // ============================================================
+
+    function loadActiveKW() {
+        var saved = localStorage.getItem(STORAGE_KEY_KW);
+        if (saved) {
+            try {
+                activeKW = JSON.parse(saved);
+            } catch(e) {
+                activeKW = getKWFromDate(new Date());
+            }
+        } else {
+            // First time: use the current real-world week
+            activeKW = getKWFromDate(new Date());
+        }
+    }
+
+    function saveActiveKW() {
+        localStorage.setItem(STORAGE_KEY_KW, JSON.stringify(activeKW));
+    }
+
+    // Update every element on the page that displays the KW.
+    // We have one in each screen header.
+    function updateKWDisplays() {
+        var kwText = 'KW ' + formatKW(activeKW);
+        var ids = ['header-kw', 'menu-kw', 'patients-kw',
+                   'form-kw', 'plan-kw', 'data-kw', 'info-kw'];
+        ids.forEach(function(id) {
+            var el = document.getElementById(id);
+            if (el) el.textContent = kwText;
+        });
+    }
+
+    // changeKW: asks the user to type a new KW in "WW/JJJJ" format.
+    // Uses the browser's built-in prompt() — a simple input dialog.
+    function changeKW() {
+        var input = prompt(
+            'Neue Kalenderwoche eingeben (Format: WW/JJJJ)\n' +
+            'Beispiel: 09/2026\n\n' +
+            'Aktuelle KW: ' + formatKW(activeKW)
+        );
+        if (!input) return; // User pressed Cancel
+
+        var parts = input.trim().split('/');
+        if (parts.length !== 2) {
+            showStatus('Ungültiges Format. Bitte WW/JJJJ eingeben.', 'error');
+            return;
+        }
+        var week = parseInt(parts[0]);
+        var year = parseInt(parts[1]);
+        if (isNaN(week) || isNaN(year) || week < 1 || week > 53) {
+            showStatus('Ungültige Kalenderwoche.', 'error');
+            return;
+        }
+        activeKW = { week: week, year: year };
+        saveActiveKW();
+        updateKWDisplays();
+        showStatus('Aktive KW geändert zu ' + formatKW(activeKW), 'success');
+    }
+
+
+    // ============================================================
+    // 8. DATA PERSISTENCE
+    // loadPatients: reads the patients array from localStorage.
+    // savePatients: writes the patients array to localStorage.
+    // loadPlanSettings / savePlanSettings: remembers therapist name etc.
+    // ============================================================
+
+    function loadPatients() {
+        var saved = localStorage.getItem(STORAGE_KEY_PATIENTS);
+        if (saved) {
+            try {
+                patients = JSON.parse(saved);
+            } catch(e) {
+                patients = [];
+                showStatus('Fehler beim Laden der Patientendaten.', 'error');
+            }
+        } else {
+            patients = [];
+        }
+    }
+
+    function savePatients() {
+        localStorage.setItem(STORAGE_KEY_PATIENTS, JSON.stringify(patients));
+    }
+
+    function loadPlanSettings() {
+        var saved = localStorage.getItem(STORAGE_KEY_PLAN);
+        if (saved) {
+            try {
+                var s = JSON.parse(saved);
+                // Pre-fill the plan form fields if they exist
+                if (document.getElementById('plan-therapist'))
+                    document.getElementById('plan-therapist').value = s.therapist || '';
+                if (document.getElementById('plan-dept'))
+                    document.getElementById('plan-dept').value = s.dept || '';
+            } catch(e) { /* ignore */ }
+        }
+    }
+
+    function savePlanSettings() {
+        var s = {
+            therapist: document.getElementById('plan-therapist').value,
+            dept:      document.getElementById('plan-dept').value
+        };
+        localStorage.setItem(STORAGE_KEY_PLAN, JSON.stringify(s));
+    }
+
+
+    // ============================================================
+    // 6. PATIENT LIST — RENDER AND SORT
+    // renderPatientList: builds the HTML for the patient list screen.
+    // sortPatients: changes the sort order and re-renders.
+    // selectPatient: highlights a row and shows the action panel.
+    // ============================================================
+
+    function renderPatientList() {
+        var list = document.getElementById('patient-list');
+        if (!list) return;
+
+        // Make a copy of the array so we don't modify the original
+        var sorted = patients.slice();
+
+        // Sort active patients first, discontinued at the bottom.
+        // Within each group, sort by the current sort setting.
+        sorted.sort(function(a, b) {
+            var aDisc = (a.status === 'discontinued');
+            var bDisc = (b.status === 'discontinued');
+            // Always put discontinued at the end
+            if (aDisc !== bDisc) return aDisc ? 1 : -1;
+
+            // Within the same group, apply the chosen sort
+            if (currentSort === 'name') {
+                return (a.name || '').localeCompare(b.name || '');
+            } else if (currentSort === 'station') {
+                return (parseInt(a.station) || 0) - (parseInt(b.station) || 0);
+            } else {
+                // Default: sort by priority (1 is most urgent = first)
+                return (parseInt(a.priority) || 9) - (parseInt(b.priority) || 9);
+            }
+        });
+
+        // Update the sort indicator text
+        var indicator = document.getElementById('sort-indicator');
+        if (indicator) {
+            var labels = { name: 'Name', station: 'Station', priority: 'Priorität' };
+            indicator.textContent = '(aktuell: ' + (labels[currentSort] || 'Priorität') + ')';
+        }
+
+        // If no patients at all, show a message
+        if (sorted.length === 0) {
+            list.innerHTML =
+                '<div style="padding: 20px; color: var(--green-dim);">' +
+                'Keine Patienten vorhanden. [2] Patient hinzufügen.' +
+                '</div>';
+            return;
+        }
+
+        // Build the HTML for each patient row
+        // We number them 1..n for keyboard selection
+        var html = '';
+        sorted.forEach(function(p, index) {
+            var num       = index + 1;
+            var isDisc    = (p.status === 'discontinued');
+            var rowClass  = 'patient-row' + (isDisc ? ' dimmed' : '');
+            var isNew     = isInKW(p.createdAt, activeKW);
+            var newBadge  = isNew ? ' [NEU]' : '';
+            var statusTxt = isDisc ? 'ABGEM.' : 'aktiv';
+
+            html += '<div class="' + rowClass + '" ' +
+                    'id="row-' + p.id + '" ' +
+                    'onclick="selectPatient(' + p.id + ')">' +
+                    '<span>' + num + '</span>' +
+                    '<span>' + (p.name || '–') + newBadge + '</span>' +
+                    '<span>' + (p.station || '–') + '</span>' +
+                    '<span>' + (p.therapyType || '–') + '</span>' +
+                    '<span>' + (p.priority || '–') + '</span>' +
+                    '<span>' + (p.sessionsPerWeek || '–') + 'x</span>' +
+                    '<span>' + statusTxt + '</span>' +
+                    '</div>';
+        });
+
+        list.innerHTML = html;
+    }
+
+    function sortPatients(by) {
+        currentSort = by;
+        renderPatientList();
+    }
+
+    // selectPatient: called when the user clicks a row.
+    // Highlights that row and shows the action buttons below.
+    function selectPatient(id) {
+        selectedPatientId = id;
+
+        // Remove highlight from all rows first
+        var rows = document.querySelectorAll('.patient-row');
+        rows.forEach(function(r) { r.classList.remove('selected'); });
+
+        // Highlight the clicked row
+        var row = document.getElementById('row-' + id);
+        if (row) row.classList.add('selected');
+
+        // Find the patient and show their name in the action panel
+        var p = patients.find(function(x) { return x.id === id; });
+        if (p) {
+            document.getElementById('selected-patient-name').textContent =
+                p.name + (p.status === 'discontinued' ? ' [ABGEMELDET]' : '');
+        }
+
+        // Show the action buttons panel
+        document.getElementById('patient-actions').style.display = 'block';
+    }
+
+
+    // ============================================================
+    // 5. PATIENT ACTIONS — EDIT, STATUS TOGGLE, DELETE
+    // editSelectedPatient: opens the form in edit mode
+    // toggleSelectedPatientStatus: flips active ↔ discontinued
+    // deleteSelectedPatient: confirms then removes from array
+    // ============================================================
+
+    function editSelectedPatient() {
+        if (!selectedPatientId) return;
+        var p = patients.find(function(x) { return x.id === selectedPatientId; });
+        if (!p) return;
+
+        // Set form title to edit mode
+        document.getElementById('form-title').textContent =
+            'PATIENT BEARBEITEN: ' + p.name;
+
+        // Fill all form fields with the patient's data
+        fillForm(p);
+
+        showScreen('form');
+    }
+
+    function toggleSelectedPatientStatus() {
+        if (!selectedPatientId) return;
+        var p = patients.find(function(x) { return x.id === selectedPatientId; });
+        if (!p) return;
+
+        if (p.status === 'active') {
+            // Switching to discontinued — ask for a reason
+            var reason = prompt(
+                'Patient abmelden: ' + p.name + '\n\n' +
+                'Abmeldegrund (freier Text):\n' +
+                'z.B. entlassen / zurückgestellt / verstorben / ...'
+            );
+            if (reason === null) return; // User pressed Cancel
+            p.status            = 'discontinued';
+            p.discontinuedDate  = formatDate(new Date());
+            p.discontinuedReason = reason.trim();
+            showStatus(p.name + ' abgemeldet.', 'warning');
+        } else {
+            // Switching back to active — clear discontinuation data
+            p.status             = 'active';
+            p.discontinuedDate   = '';
+            p.discontinuedReason = '';
+            showStatus(p.name + ' wieder aktiviert.', 'success');
+        }
+
+        savePatients();
+        renderPatientList();
+
+        // Reset selection after toggle
+        selectedPatientId = null;
+        document.getElementById('patient-actions').style.display = 'none';
+    }
+
+    function deleteSelectedPatient() {
+        if (!selectedPatientId) return;
+        var p = patients.find(function(x) { return x.id === selectedPatientId; });
+        if (!p) return;
+
+        showModal(
+            'PATIENT LÖSCHEN',
+            'Soll "' + p.name + '" wirklich dauerhaft gelöscht werden?\n' +
+            'Diese Aktion kann nicht rückgängig gemacht werden.',
+            function() {
+                // Remove patient from array
+                patients = patients.filter(function(x) { return x.id !== selectedPatientId; });
+                savePatients();
+                selectedPatientId = null;
+                document.getElementById('patient-actions').style.display = 'none';
+                renderPatientList();
+                showStatus('Patient gelöscht.', 'success');
+            }
+        );
+    }
+
+
+    // ============================================================
+    // 7. FORM HANDLING
+    // switchTab: shows one of the 4 tabs, hides the others.
+    // clearForm: resets all inputs to empty / default.
+    // fillForm: populates all inputs from a patient object.
+    // readForm: collects all input values into a new object.
+    // savePatient: validates, then adds or updates the patient.
+    // ============================================================
+
+    function switchTab(n) {
+        // Update tab button styles
+        for (var i = 1; i <= 4; i++) {
+            var tabBtn = document.querySelector('.tab:nth-child(' + i + ')');
+            var tabContent = document.getElementById('tab-' + i);
+            if (i === n) {
+                if (tabBtn) tabBtn.classList.add('active');
+                if (tabContent) tabContent.classList.add('active');
+            } else {
+                if (tabBtn) tabBtn.classList.remove('active');
+                if (tabContent) tabContent.classList.remove('active');
+            }
+        }
+    }
+
+    function clearForm() {
+        // Clear all text inputs and textareas
+        var fields = ['f-name', 'f-dob', 'f-admission', 'f-treatment-start',
+                      'f-planned-discharge', 'f-priority', 'f-station',
+                      'f-therapy-type', 'f-sessions', 'f-duration',
+                      'f-appointments', 'f-scheduling-notes', 'f-diagnoses',
+                      'f-discharge-dest', 'f-discontinued-reason', 'f-notes'];
+        fields.forEach(function(id) {
+            var el = document.getElementById(id);
+            if (el) el.value = '';
+        });
+
+        // Reset hidden patient ID (means we are in "new" mode)
+        document.getElementById('patient-id').value = '';
+
+        // Reset all flags to unchecked ( )
+        var flags = ['flag-status', 'flag-no-neuro', 'flag-license',
+                     'flag-drive', 'flag-working', 'flag-caregiver'];
+        flags.forEach(function(id) {
+            var el = document.getElementById(id);
+            if (el) el.textContent = '( )';
+        });
+
+        // Hide discontinued fields
+        document.getElementById('discontinued-fields').style.display = 'none';
+
+        // Reset form title
+        document.getElementById('form-title').textContent = 'PATIENT HINZUFÜGEN';
+
+        // Go back to first tab
+        switchTab(1);
+    }
+
+    // toggleFlag: flips a single ( ) ↔ (X) flag box.
+    // flagId is the element ID of the flag-box span.
+    function toggleFlag(flagId) {
+        var el = document.getElementById(flagId);
+        if (!el) return;
+        el.textContent = (el.textContent.trim() === '(X)') ? '( )' : '(X)';
+    }
+
+    // toggleStatusFlag: special version for the "Abgemeldet" flag.
+    // Also shows/hides the discontinued reason input field.
+    function toggleStatusFlag() {
+        var el = document.getElementById('flag-status');
+        if (!el) return;
+        var isNowChecked = (el.textContent.trim() === '( )');
+        el.textContent = isNowChecked ? '(X)' : '( )';
+        // Show or hide the reason field
+        document.getElementById('discontinued-fields').style.display =
+            isNowChecked ? 'block' : 'none';
+    }
+
+    // autocorrectTherapyType: converts lowercase input to uppercase.
+    // Called on every keypress in the Therapieart field.
+    // "np" → "NP", "kv" → "KV", "ag" → "AG"
+    function autocorrectTherapyType(el) {
+        var val = el.value.toUpperCase().trim();
+        // Only accept valid values
+        if (['NP', 'KV', 'AG'].indexOf(val) !== -1 || val === '') {
+            el.value = val;
+        } else {
+            el.value = val; // Still show what they typed, validate on save
+        }
+    }
+
+    // getFlagValue: helper to read a flag's true/false state from the DOM.
+    function getFlagValue(flagId) {
+        var el = document.getElementById(flagId);
+        return el ? (el.textContent.trim() === '(X)') : false;
+    }
+
+    // setFlagValue: helper to set a flag's visual state from a boolean.
+    function setFlagValue(flagId, value) {
+        var el = document.getElementById(flagId);
+        if (el) el.textContent = value ? '(X)' : '( )';
+    }
+
+    // fillForm: populates the form with an existing patient's data.
+    // Called when editing a patient.
+    function fillForm(p) {
+        document.getElementById('patient-id').value           = p.id;
+        document.getElementById('f-name').value               = p.name || '';
+        document.getElementById('f-dob').value                = p.dateOfBirth || '';
+        document.getElementById('f-admission').value          = p.admissionDate || '';
+        document.getElementById('f-treatment-start').value    = p.treatmentStart || '';
+        document.getElementById('f-planned-discharge').value  = p.plannedDischarge || '';
+        document.getElementById('f-priority').value           = p.priority || '';
+        document.getElementById('f-station').value            = p.station || '';
+        document.getElementById('f-therapy-type').value       = p.therapyType || '';
+        document.getElementById('f-sessions').value           = p.sessionsPerWeek || '';
+        document.getElementById('f-duration').value           = p.sessionDuration || '';
+        document.getElementById('f-appointments').value       = p.appointmentsSoFar || 0;
+        document.getElementById('f-scheduling-notes').value   = p.schedulingNotes || '';
+        document.getElementById('f-diagnoses').value          = p.diagnoses || '';
+        document.getElementById('f-discharge-dest').value     = p.dischargeDestination || '';
+        document.getElementById('f-discontinued-reason').value = p.discontinuedReason || '';
+        document.getElementById('f-notes').value              = p.notes || '';
+
+        // Set the status flag
+        var isDisc = (p.status === 'discontinued');
+        setFlagValue('flag-status', isDisc);
+        document.getElementById('discontinued-fields').style.display =
+            isDisc ? 'block' : 'none';
+
+        // Set all the clinical flags
+        setFlagValue('flag-no-neuro',  p.noNeuroDiagnosis || false);
+        setFlagValue('flag-license',   p.hasLicense       || false);
+        setFlagValue('flag-drive',     p.wantsToDrive     || false);
+        setFlagValue('flag-working',   p.workingAge       || false);
+        setFlagValue('flag-caregiver', p.hasCaregiver     || false);
+
+        // Always start on tab 1 when editing
+        switchTab(1);
+    }
+
+    // readForm: collects all values from the form into a plain object.
+    // This is the reverse of fillForm.
+    function readForm() {
+        return {
+            name:               document.getElementById('f-name').value.trim(),
+            dateOfBirth:        document.getElementById('f-dob').value.trim(),
+            admissionDate:      document.getElementById('f-admission').value.trim(),
+            treatmentStart:     document.getElementById('f-treatment-start').value.trim(),
+            plannedDischarge:   document.getElementById('f-planned-discharge').value.trim(),
+            priority:           parseInt(document.getElementById('f-priority').value) || '',
+            station:            parseInt(document.getElementById('f-station').value) || '',
+            therapyType:        document.getElementById('f-therapy-type').value.trim().toUpperCase(),
+            sessionsPerWeek:    parseInt(document.getElementById('f-sessions').value) || '',
+            sessionDuration:    parseInt(document.getElementById('f-duration').value) || '',
+            appointmentsSoFar:  parseInt(document.getElementById('f-appointments').value) || 0,
+            schedulingNotes:    document.getElementById('f-scheduling-notes').value.trim(),
+            diagnoses:          document.getElementById('f-diagnoses').value.trim(),
+            dischargeDestination: document.getElementById('f-discharge-dest').value.trim(),
+            discontinuedReason: document.getElementById('f-discontinued-reason').value.trim(),
+            notes:              document.getElementById('f-notes').value.trim(),
+            status:             getFlagValue('flag-status') ? 'discontinued' : 'active',
+            noNeuroDiagnosis:   getFlagValue('flag-no-neuro'),
+            hasLicense:         getFlagValue('flag-license'),
+            wantsToDrive:       getFlagValue('flag-drive'),
+            workingAge:         getFlagValue('flag-working'),
+            hasCaregiver:       getFlagValue('flag-caregiver')
+        };
+    }
+
+    // savePatient: validates then saves (add new or update existing).
+    function savePatient() {
+        var data = readForm();
+
+        // Validation — only name is strictly required
+        if (!data.name) {
+            showStatus('Fehler: Name ist ein Pflichtfeld.', 'error');
+            switchTab(1); // Jump to the tab with the missing field
+            return;
+        }
+        if (data.therapyType && ['NP','KV','AG'].indexOf(data.therapyType) === -1) {
+            showStatus('Fehler: Therapieart muss NP, KV oder AG sein.', 'error');
+            switchTab(2);
+            return;
+        }
+
+        var existingId = document.getElementById('patient-id').value;
+
+        if (existingId) {
+            // EDIT MODE: update the existing patient
+            var idx = patients.findIndex(function(p) {
+                return String(p.id) === String(existingId);
+            });
+            if (idx !== -1) {
+                // Preserve the original createdAt and id
+                data.id        = patients[idx].id;
+                data.createdAt = patients[idx].createdAt;
+                // If status just changed to discontinued, record the date
+                if (data.status === 'discontinued' && patients[idx].status !== 'discontinued') {
+                    data.discontinuedDate = formatDate(new Date());
+                } else {
+                    data.discontinuedDate = patients[idx].discontinuedDate || '';
+                }
+                patients[idx] = data;
+                showStatus('Patient aktualisiert: ' + data.name, 'success');
+            }
+        } else {
+            // NEW MODE: create a new patient with a fresh ID and timestamp
+            data.id              = Date.now(); // unique number based on current time
+            data.createdAt       = formatDate(new Date()); // today as dd.mm.yyyy
+            data.discontinuedDate = '';
+            patients.push(data);
+            showStatus('Patient hinzugefügt: ' + data.name, 'success');
+        }
+
+        savePatients();
+        clearForm();
+        showScreen('patients');
+    }
+
+
+    // ============================================================
+    // 8. WEEKLY PLAN GENERATION
+    // generatePlan: builds the formatted plan text from patients[].
+    // copyPlan: copies that text to the clipboard.
+    // printPlan: triggers browser print (landscape A4 via CSS).
+    // closeWeek: confirms, deletes discontinued, advances KW.
+    // ============================================================
+
+    // pad: helper to pad a string to a fixed width with spaces.
+    // Used to align columns in the plan output.
+    // e.g. pad("Mustermann, Max", 25) → "Mustermann, Max          "
+    function pad(str, width) {
+        str = String(str || '');
+        if (str.length >= width) return str.substring(0, width);
+        return str + ' '.repeat(width - str.length);
+    }
+
+    function generatePlan() {
+        savePlanSettings(); // remember therapist/dept for next time
+
+        var therapist = document.getElementById('plan-therapist').value.trim();
+        var dept      = document.getElementById('plan-dept').value.trim();
+        var blocked   = document.getElementById('plan-blocked').value;
+
+        // Parse the KW from the input field
+        var kwInput = document.getElementById('plan-week').value.trim();
+        var kwParts = kwInput.split('/');
+        var planKW  = { week: parseInt(kwParts[0]), year: parseInt(kwParts[1]) };
+
+        if (isNaN(planKW.week) || isNaN(planKW.year)) {
+            showStatus('Bitte gültige Kalenderwoche eingeben (Format: WW/JJJJ).', 'error');
+            return;
+        }
+
+        // Get the Monday–Friday date range for this KW
+        var range = getDateRangeOfKW(planKW.week, planKW.year);
+
+        // Format the week number with leading zero: 9 → "09"
+        var kwStr = String(planKW.week).padStart(2, '0');
+
+        // ── HEADER ──────────────────────────────────────────────
+        var lines = [];
+        lines.push(
+            'Therapeut: ' + (therapist || '___________') +
+            ', Abteilung: ' + (dept || '___________') + ','
+        );
+        lines.push(
+            'Wochentherapieplan KW ' + kwStr +
+            ' (' + range.monday + ' \u2013 ' + range.friday + ')'
+        );
+        lines.push('');
+
+        // ── SPERRZEITEN ─────────────────────────────────────────
+        lines.push('Sperrzeiten in der kommenden Woche:');
+        lines.push('WOCHENTAG          UHRZEIT VON-BIS     GRUND');
+        if (blocked && blocked.trim()) {
+            // Add the user's free text, indented slightly
+            blocked.split('\n').forEach(function(line) {
+                lines.push(line);
+            });
+        } else {
+            lines.push('');
+        }
+        lines.push('');
+
+        // ── VERÄNDERUNGEN ────────────────────────────────────────
+        // Find patients discontinued during this planning KW
+        var discontinued = patients.filter(function(p) {
+            return p.status === 'discontinued' && isInKW(p.discontinuedDate, planKW);
+        });
+
+        lines.push('Veränderungen gegenüber Vorwoche:');
+        if (discontinued.length > 0) {
+            discontinued.forEach(function(p) {
+                lines.push(
+                    (p.name || '???') +
+                    (p.discontinuedReason ? ' \u2013 ' + p.discontinuedReason : '')
+                );
+            });
+        } else {
+            lines.push('');
+        }
+        lines.push('');
+
+        // ── PATIENT TABLE ────────────────────────────────────────
+        var divider = '\u2500'.repeat(78); // ─────────...
+        lines.push(divider);
+        lines.push(
+            pad('Name', 26) +
+            pad('Stat', 6) +
+            pad('Therapie', 10) +
+            pad('Anzahl', 8) +
+            pad('Dauer', 7) +
+            'Anmerkungen'
+        );
+        lines.push(divider);
+
+        // Only active patients in the table, sorted by station
+        var active = patients
+            .filter(function(p) { return p.status === 'active'; })
+            .sort(function(a, b) {
+                return (parseInt(a.station) || 0) - (parseInt(b.station) || 0);
+            });
+
+        if (active.length === 0) {
+            lines.push('  (keine aktiven Patienten)');
+        } else {
+            active.forEach(function(p) {
+                // Build the Anmerkungen column:
+                // new patients get "neu; " prepended to their scheduling notes
+                var isNew     = isInKW(p.createdAt, planKW);
+                var anmerkung = p.schedulingNotes || '';
+                if (isNew) {
+                    anmerkung = anmerkung ? 'neu; ' + anmerkung : 'neu';
+                }
+
+                lines.push(
+                    pad(p.name || '', 26) +
+                    pad(p.station || '', 6) +
+                    pad(p.therapyType || '', 10) +
+                    pad(p.sessionsPerWeek || '', 8) +
+                    pad(p.sessionDuration || '', 7) +
+                    anmerkung
+                );
+            });
+        }
+
+        lines.push(divider);
+        lines.push('');
+        lines.push(
+            'Bitte Patient:innen m\u00f6glichst gleichm\u00e4\u00dfig auf die ' +
+            'Tage verteilen, vielen Dank!!'
+        );
+
+        // Join all lines and display in the output box
+        var planText = lines.join('\n');
+        var outputEl = document.getElementById('plan-output');
+        outputEl.textContent = planText;
+        outputEl.style.display = 'block';
+
+        showStatus('Wochenplan generiert.', 'success');
+    }
+
+    function copyPlan() {
+        var outputEl = document.getElementById('plan-output');
+        if (!outputEl || outputEl.style.display === 'none') {
+            showStatus('Bitte zuerst einen Plan generieren [G].', 'warning');
+            return;
+        }
+        var text = outputEl.textContent;
+        // navigator.clipboard is the modern way; we fall back to
+        // the older execCommand method for tablets that don't support it
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(text).then(function() {
+                showStatus('Plan in Zwischenablage kopiert.', 'success');
+            }).catch(function() {
+                fallbackCopy(text);
+            });
+        } else {
+            fallbackCopy(text);
+        }
+    }
+
+    // fallbackCopy: older clipboard method for browsers/tablets
+    // that don't support the modern navigator.clipboard API
+    function fallbackCopy(text) {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity  = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try {
+            document.execCommand('copy');
+            showStatus('Plan in Zwischenablage kopiert.', 'success');
+        } catch(e) {
+            showStatus('Kopieren fehlgeschlagen. Bitte manuell markieren.', 'error');
+        }
+        document.body.removeChild(ta);
+    }
+
+    function printPlan() {
+        var outputEl = document.getElementById('plan-output');
+        if (!outputEl || outputEl.style.display === 'none') {
+            showStatus('Bitte zuerst einen Plan generieren [G].', 'warning');
+            return;
+        }
+        window.print(); // CSS @media print handles the rest
+    }
+
+    // closeWeek: the "end of week" action.
+    // Confirms with the user, then:
+    //   1. Deletes all discontinued patients permanently
+    //   2. Advances the active KW by one week
+    //   3. Clears the Sperrzeiten field
+    function closeWeek() {
+        var discCount = patients.filter(function(p) {
+            return p.status === 'discontinued';
+        }).length;
+
+        showModal(
+            'WOCHE ABSCHLIEßEN',
+            'Diese Aktion:\n' +
+            '  • Löscht ' + discCount + ' abgemeldete(n) Patienten dauerhaft\n' +
+            '  • Setzt die aktive KW auf die nächste Woche\n' +
+            '  • Löscht die Sperrzeiten\n\n' +
+            'Sind Sie sicher?',
+            function() {
+                // 1. Delete all discontinued patients
+                patients = patients.filter(function(p) {
+                    return p.status !== 'discontinued';
+                });
+                savePatients();
+
+                // 2. Advance KW by one week
+                // We do this by adding 7 days to the Monday of the current KW
+                var range  = getDateRangeOfKW(activeKW.week, activeKW.year);
+                var monday = parseDate(range.monday);
+                monday.setDate(monday.getDate() + 7);
+                activeKW = getKWFromDate(monday);
+                saveActiveKW();
+                updateKWDisplays();
+
+                // 3. Clear Sperrzeiten
+                document.getElementById('plan-blocked').value = '';
+
+                // Also update the plan-week input to the new KW
+                document.getElementById('plan-week').value = formatKW(activeKW);
+
+                showStatus(
+                    'Woche abgeschlossen. Neue aktive KW: ' + formatKW(activeKW),
+                    'success'
+                );
+            }
+        );
+    }
+
+
+    // ============================================================
+    // 9. DATA MANAGEMENT — JSON AND EXCEL
+    // exportJSON / importJSON: native backup format
+    // exportExcel / importExcel: via SheetJS library
+    //
+    // NOTE ON SheetJS:
+    // SheetJS (XLSX) is loaded from a CDN at the bottom of this file.
+    // The variable XLSX is made available globally by that library.
+    // If there is no internet connection, Excel functions won't work,
+    // but JSON export/import always works offline.
+    // ============================================================
+
+    function exportJSON() {
+        var data = {
+            version:   '5.0',
+            exported:  formatDate(new Date()),
+            activeKW:  activeKW,
+            patients:  patients
+        };
+        var blob = new Blob(
+            [JSON.stringify(data, null, 2)],
+            { type: 'application/json' }
+        );
+        var url  = URL.createObjectURL(blob);
+        var a    = document.createElement('a');
+        a.href   = url;
+        a.download = 'neuropsych-backup-' + formatDate(new Date()).replace(/\./g, '-') + '.json';
+        a.click();
+        URL.revokeObjectURL(url);
+        showStatus('JSON-Export erfolgreich.', 'success');
+    }
+
+    function importJSON() {
+        document.getElementById('import-json-file').click();
+    }
+
+    function handleJSONImport(event) {
+        var file = event.target.files[0];
+        if (!file) return;
+        var reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                var data = JSON.parse(e.target.result);
+                if (!data.patients || !Array.isArray(data.patients)) {
+                    showStatus('Ungültiges JSON-Format.', 'error');
+                    return;
+                }
+                if (!confirm(
+                    data.patients.length + ' Patienten gefunden.\n' +
+                    'Sollen die bestehenden Daten ersetzt werden?'
+                )) return;
+                patients = data.patients;
+                savePatients();
+                renderPatientList();
+                showStatus(data.patients.length + ' Patienten importiert.', 'success');
+            } catch(err) {
+                showStatus('Fehler beim Lesen der JSON-Datei.', 'error');
+            }
+        };
+        reader.readAsText(file);
+        // Reset the file input so the same file can be imported again if needed
+        event.target.value = '';
+    }
+
+    function exportExcel() {
+        // Check that SheetJS is loaded
+        if (typeof XLSX === 'undefined') {
+            showStatus('Excel-Bibliothek nicht verfügbar (Internet erforderlich).', 'error');
+            return;
+        }
+
+        // Build the data as an array of rows (first row = column headers)
+        var rows = [
+            ['Name', 'Geburtsdatum', 'Aufnahmedatum', 'Behandlungsbeginn',
+             'Geplante Entlassung', 'Priorität', 'Status', 'Abmeldegrund',
+             'Station', 'Therapieart', 'Sitzungen/Woche', 'Dauer (Min)',
+             'Termine bisher', 'Planungshinweise', 'Diagnosen',
+             'Entlassung wohin', 'Keine Neuro-Diag.', 'Führerschein',
+             'Möchte fahren', 'Erwerb.fähig', 'Betreuung', 'Notizen',
+             'Erstellt am']
+        ];
+
+        patients.forEach(function(p) {
+            rows.push([
+                p.name || '',
+                p.dateOfBirth || '',
+                p.admissionDate || '',
+                p.treatmentStart || '',
+                p.plannedDischarge || '',
+                p.priority || '',
+                p.status || '',
+                p.discontinuedReason || '',
+                p.station || '',
+                p.therapyType || '',
+                p.sessionsPerWeek || '',
+                p.sessionDuration || '',
+                p.appointmentsSoFar || 0,
+                p.schedulingNotes || '',
+                p.diagnoses || '',
+                p.dischargeDestination || '',
+                p.noNeuroDiagnosis ? 'Ja' : 'Nein',
+                p.hasLicense       ? 'Ja' : 'Nein',
+                p.wantsToDrive     ? 'Ja' : 'Nein',
+                p.workingAge       ? 'Ja' : 'Nein',
+                p.hasCaregiver     ? 'Ja' : 'Nein',
+                p.notes || '',
+                p.createdAt || ''
+            ]);
+        });
+
+        var ws = XLSX.utils.aoa_to_sheet(rows); // aoa = array of arrays
+        var wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Patienten');
+        XLSX.writeFile(wb, 'neuropsych-export-' +
+            formatDate(new Date()).replace(/\./g, '-') + '.xlsx');
+        showStatus('Excel-Export erfolgreich.', 'success');
+    }
+
+    function importExcel() {
+        document.getElementById('import-excel-file').click();
+    }
+
+    function handleExcelImport(event) {
+        if (typeof XLSX === 'undefined') {
+            showStatus('Excel-Bibliothek nicht verfügbar (Internet erforderlich).', 'error');
+            return;
+        }
+        var file = event.target.files[0];
+        if (!file) return;
+        var reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                var data     = new Uint8Array(e.target.result);
+                var workbook = XLSX.read(data, { type: 'array' });
+                var sheet    = workbook.Sheets[workbook.SheetNames[0]];
+                var rows     = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+                if (rows.length < 2) {
+                    showStatus('Keine Daten in der Excel-Datei gefunden.', 'error');
+                    return;
+                }
+
+                // First row is headers — build a flexible column map
+                var headers = rows[0];
+                var colMap  = {};
+                headers.forEach(function(h, i) {
+                    var hh = String(h || '').toLowerCase();
+                    if (hh.includes('name'))       colMap.name = i;
+                    if (hh.includes('geburt'))     colMap.dateOfBirth = i;
+                    if (hh.includes('aufnahme'))   colMap.admissionDate = i;
+                    if (hh.includes('station'))    colMap.station = i;
+                    if (hh.includes('therapie') && !hh.includes('plan')) colMap.therapyType = i;
+                    if (hh.includes('sitzung'))    colMap.sessionsPerWeek = i;
+                    if (hh.includes('dauer'))      colMap.sessionDuration = i;
+                    if (hh.includes('diagnos'))    colMap.diagnoses = i;
+                    if (hh.includes('priorit'))    colMap.priority = i;
+                    if (hh.includes('notiz'))      colMap.notes = i;
+                    if (hh.includes('planungshin')) colMap.schedulingNotes = i;
+                });
+
+                // Build patient objects from each data row
+                var imported = [];
+                for (var i = 1; i < rows.length; i++) {
+                    var row = rows[i];
+                    if (!row || !row[colMap.name]) continue; // skip empty rows
+                    imported.push({
+                        id:               Date.now() + i,
+                        name:             String(row[colMap.name] || ''),
+                        dateOfBirth:      String(row[colMap.dateOfBirth] || ''),
+                        admissionDate:    String(row[colMap.admissionDate] || ''),
+                        station:          parseInt(row[colMap.station]) || '',
+                        therapyType:      String(row[colMap.therapyType] || '').toUpperCase(),
+                        sessionsPerWeek:  parseInt(row[colMap.sessionsPerWeek]) || '',
+                        sessionDuration:  parseInt(row[colMap.sessionDuration]) || '',
+                        priority:         parseInt(row[colMap.priority]) || 3,
+                        diagnoses:        String(row[colMap.diagnoses] || ''),
+                        schedulingNotes:  String(row[colMap.schedulingNotes] || ''),
+                        notes:            String(row[colMap.notes] || ''),
+                        status:           'active',
+                        createdAt:        formatDate(new Date()),
+                        treatmentStart: '', plannedDischarge: '',
+                        discontinuedDate: '', discontinuedReason: '',
+                        dischargeDestination: '',
+                        noNeuroDiagnosis: false, hasLicense: false,
+                        wantsToDrive: false, workingAge: false, hasCaregiver: false,
+                        appointmentsSoFar: 0
+                    });
+                }
+
+                if (!confirm(imported.length + ' Patienten gefunden.\nImportieren?')) return;
+                patients = patients.concat(imported);
+                savePatients();
+                renderPatientList();
+                showStatus(imported.length + ' Patienten aus Excel importiert.', 'success');
+            } catch(err) {
+                showStatus('Fehler beim Lesen der Excel-Datei: ' + err.message, 'error');
+            }
+        };
+        reader.readAsArrayBuffer(file);
+        event.target.value = '';
+    }
+
+
+    // ============================================================
+    // 10. KEYBOARD HANDLER
+    // Listens for keypresses on the whole document.
+    // Routes keys to the right action based on currentScreen.
+    // This is the "event loop" equivalent from BASIC.
+    // ============================================================
+
+    function handleKeyDown(event) {
+        // Don't intercept keys when the user is typing in an input field
+        var tag = event.target.tagName.toLowerCase();
+        if (tag === 'input' || tag === 'textarea') return;
+
+        // Don't intercept when modal is open
+        if (document.getElementById('modal').classList.contains('visible')) {
+            if (event.key === 'j' || event.key === 'J') {
+                document.getElementById('modal-confirm').click();
+            }
+            if (event.key === 'n' || event.key === 'N' || event.key === 'Escape') {
+                closeModal();
+            }
+            return;
+        }
+
+        var key = event.key;
+
+        // ── Keys that work on any screen ──────────────────────
+        if (key === '0' || key === 'Escape') { goBack(); return; }
+        if (key === 'k' || key === 'K')      { changeKW(); return; }
+
+        // ── Screen-specific keys ──────────────────────────────
+        if (currentScreen === 'menu') {
+            if (key === '1') showScreen('patients');
+            if (key === '2') { clearForm(); showScreen('form'); }
+            if (key === '3') showScreen('plan');
+            if (key === '4') showScreen('data');
+            if (key === '5') showScreen('info');
+        }
+
+        if (currentScreen === 'patients') {
+            if (key === 'n' || key === 'N') sortPatients('name');
+            if (key === 's' || key === 'S') sortPatients('station');
+            if (key === 'p' || key === 'P') sortPatients('priority');
+            // Number keys 1-9: select patient by list position
+            var num = parseInt(key);
+            if (!isNaN(num) && num >= 1) {
+                // Find the nth visible patient in current sort order
+                var sorted = getSortedPatients();
+                if (sorted[num - 1]) selectPatient(sorted[num - 1].id);
+            }
+            if (selectedPatientId) {
+                if (key === '1') editSelectedPatient();        // [1] edit
+                if (key === '2') toggleSelectedPatientStatus(); // [2] toggle status  
+                if (key === '3') deleteSelectedPatient();      // [3] delete
+            }
+        }
+
+        if (currentScreen === 'form') {
+            if (key === '1') switchTab(1);
+            if (key === '2') switchTab(2);
+            if (key === '3') switchTab(3);
+            if (key === '4') switchTab(4);
+            if (key === 'Enter') { savePatient(); event.preventDefault(); }
+        }
+
+        if (currentScreen === 'plan') {
+            if (key === 'g' || key === 'G') generatePlan();
+            if (key === 'k' || key === 'K') { copyPlan(); return; } // override global K
+            if (key === 'd' || key === 'D') printPlan();
+            if (key === 'w' || key === 'W') closeWeek();
+        }
+
+        if (currentScreen === 'data') {
+            if (key === '1') exportJSON();
+            if (key === '2') importJSON();
+            if (key === '3') exportExcel();
+            if (key === '4') importExcel();
+        }
+    }
+
+    // getSortedPatients: returns the patients array in current sort order.
+    // Used by the keyboard handler to map number keys to patients.
+    function getSortedPatients() {
+        return patients.slice().sort(function(a, b) {
+            var aDisc = (a.status === 'discontinued');
+            var bDisc = (b.status === 'discontinued');
+            if (aDisc !== bDisc) return aDisc ? 1 : -1;
+            if (currentSort === 'name')
+                return (a.name || '').localeCompare(b.name || '');
+            if (currentSort === 'station')
+                return (parseInt(a.station) || 0) - (parseInt(b.station) || 0);
+            return (parseInt(a.priority) || 9) - (parseInt(b.priority) || 9);
+        });
+    }
+
+    // Also set up the "new patient" button properly:
+    // When the user clicks [2] on the main menu, we clear the form first.
+    document.addEventListener('DOMContentLoaded', function() {
+        var addBtn = document.querySelector('.menu-list li:nth-child(2)');
+        if (addBtn) {
+            addBtn.onclick = function() { clearForm(); showScreen('form'); };
+        }
+    });
+
+    </script>
+
+    <!-- ============================================================
+         EXTERNAL LIBRARY: SheetJS (XLSX)
+         This is the only external dependency in the whole app.
+         It handles reading and writing Excel files.
+         Loaded from a CDN — requires internet connection.
+         If offline, JSON export/import still works fine.
+         Version pinned to 0.18.5 for stability.
+    ============================================================ -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+</body>
+</html>
